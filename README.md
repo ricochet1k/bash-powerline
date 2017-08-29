@@ -1,54 +1,98 @@
 # bash-powerline
 
-Powerline for Bash in pure Bash script. 
+Easily customizable Powerline for Bash in pure Bash script.
 
 ![bash-powerline](https://raw.github.com/riobard/bash-powerline/master/screenshots/solarized-light-source-code-pro.png)
 ![bash-powerline](https://raw.github.com/riobard/bash-powerline/master/screenshots/solarized-dark-monaco.png)
 
 ## Features
 
-* Git branch: display current git branch name, or short SHA1 hash when the head
-  is detached
-* Git branch: display "+" symbol when current branch is changed but uncommited
-* Git branch: display "⇡" symbol and the difference in the number of commits when the current branch is ahead of remote (see screenshot)
-* Git branch: display "⇣" symbol and the difference in the number of commits when the current branch is behind of remote (see screenshot)
 * Platform-dependent prompt symbol for OS X and Linux (see screenshots)
-* Color code for the previously failed command
+* Exit code if the previous command failed
 * Fast execution (no noticable delay)
-* No need for patched fonts
+* Easy customization (see below)
 
 
 ## Installation
 
 Download the Bash script
 
-    curl https://raw.githubusercontent.com/riobard/bash-powerline/master/bash-powerline.sh > ~/.bash-powerline.sh
+    curl https://raw.githubusercontent.com/ricochet1k/bash-powerline/master/bash-powerline.sh > ~/.bash-powerline.sh
 
 And source it in your `.bashrc`
 
     source ~/.bash-powerline.sh
 
-For best result, use [Solarized
-colorscheme](https://github.com/altercation/solarized) for your terminal
+For best result, use [Solarized colorscheme](https://github.com/altercation/solarized) for your terminal
 emulator. Or hack your own colorscheme by modifying the script. It's really
 easy.
 
 
+## Customization
+Start by copying the `powerline_prompt` function in the script into your
+.bashrc
+```bash
+powerline_prompt() {
+  local ret=$?
+  if [ $ret -ne 0 ]; then
+    powerline_segment BASE03 WHITE "$BOLD$ret"
+  fi
+  powerline_segment BLUE WHITE "$BOLD$USER"
+  powerline_segment BASE01 WHITE "$BOLD$(dirs +0)" # show $PWD relative to ~
+  powerline_segment BLACK NONE ""
+}
+```
+
+Put this after the source command. There are 3, maybe 4 segments here. The first
+one is the return value of the previous command, but only if it is not 0. Then
+you have your username, your current directory, and a final empty segment to
+reset to black.
+
+Each powerline_segment takes background, foreground and text.
+
+### Example segments
+Current time:
+```bash
+powerline_segment BASE02 WHITE "$(date +%X)"
+```
+
+Current git branch and how many ahead/behind (stolen from original fork):
+```bash
+__git_info() { 
+    [ -x "$(which git)" ] || return    # git not found
+
+    local git_eng="env LANG=C git"   # force git output in English to make our work easier
+    # get current branch name or short SHA1 hash for detached head
+    local branch="$($git_eng symbolic-ref --short HEAD 2>/dev/null || $git_eng describe --tags --always 2>/dev/null)"
+    [ -n "$branch" ] || return  # git branch not found
+
+    local marks
+
+    # branch is modified?
+    [ -n "$($git_eng status --porcelain)" ] && marks+=" $GIT_BRANCH_CHANGED_SYMBOL"
+
+    # how many commits local branch is ahead/behind of remote?
+    local stat="$($git_eng status --porcelain --branch | grep '^##' | grep -o '\[.\+\]$')"
+    local aheadN="$(echo $stat | grep -o 'ahead [[:digit:]]\+' | grep -o '[[:digit:]]\+')"
+    local behindN="$(echo $stat | grep -o 'behind [[:digit:]]\+' | grep -o '[[:digit:]]\+')"
+    [ -n "$aheadN" ] && marks+=" $GIT_NEED_PUSH_SYMBOL$aheadN"
+    [ -n "$behindN" ] && marks+=" $GIT_NEED_PULL_SYMBOL$behindN"
+
+    # print the git branch segment without a trailing newline
+    printf " $GIT_BRANCH_SYMBOL$branch$marks "
+}
+
+powerline_segment BASE00 WHITE "$(__git_info)"
+```
+
 ## Why?
+I made this fork of [bash-powerline](https://github.com/riobard/bash-powerline/)
+because I wanted an easily customizable powerline implementation for bash.
+Modifying random JSON files and python scripts for something as simple as adding
+a segment for the current time should not require reading a ton of documentation
+and debugging.
 
-This script is largely inspired by
-[powerline-shell](https://github.com/milkbikis/powerline-shell). The biggest
-problem is that it is implemented in Python. Python scripts are much easier to
-write and maintain than Bash scripts, but for my simple cases I find Bash
-scripts to be manageable. However, invoking the Python interpreter each time to
-draw the shell prompt introduces a noticable delay. I hate delays. So I decided
-to port just the functionalities I need to pure Bash script instead. 
-
-The other issue is that I don't like the idea of requiring patched fonts for
-this to work. The font patching mechanism from the original Powerline does not
-work with the bitmap font (Apple Monaco without anti-aliasing) I use on
-non-retina screens. I'd rather stick with existing unicode symbols in the fonts.
-
+And I like patched fonts.
 
 ## See also
 * [powerline](https://github.com/Lokaltog/powerline): Unified Powerline

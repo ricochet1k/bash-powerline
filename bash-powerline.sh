@@ -1,6 +1,8 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 __powerline() {
+
+if [ -z "$PS_SYMBOL_LINUX" ]; then
 
     # Unicode symbols
     readonly PS_SYMBOL_DARWIN=''
@@ -39,6 +41,8 @@ __powerline() {
         readonly FG_BLUE="\[$(tput setaf 33)\]"
         readonly FG_CYAN="\[$(tput setaf 37)\]"
         readonly FG_GREEN="\[$(tput setaf 64)\]"
+        readonly FG_WHITE="\[$(tput setaf 7)\]"
+        readonly FG_BLACK="\[$(tput setaf 0)\]"
 
         readonly BG_YELLOW="\[$(tput setab 136)\]"
         readonly BG_ORANGE="\[$(tput setab 166)\]"
@@ -48,6 +52,8 @@ __powerline() {
         readonly BG_BLUE="\[$(tput setab 33)\]"
         readonly BG_CYAN="\[$(tput setab 37)\]"
         readonly BG_GREEN="\[$(tput setab 64)\]"
+        readonly BG_WHITE="\[$(tput setab 15)\]"
+        readonly BG_BLACK="\[$(tput setab 232)\]"
      else
         readonly FG_BASE03="\[$(tput setaf 8)\]"
         readonly FG_BASE02="\[$(tput setaf 0)\]"
@@ -75,6 +81,8 @@ __powerline() {
         readonly FG_BLUE="\[$(tput setaf 4)\]"
         readonly FG_CYAN="\[$(tput setaf 6)\]"
         readonly FG_GREEN="\[$(tput setaf 2)\]"
+        readonly FG_WHITE="\[$(tput setaf 7)\]"
+        readonly FG_BLACK="\[$(tput setaf 0)\]"
 
         readonly BG_YELLOW="\[$(tput setab 3)\]"
         readonly BG_ORANGE="\[$(tput setab 9)\]"
@@ -84,77 +92,68 @@ __powerline() {
         readonly BG_BLUE="\[$(tput setab 4)\]"
         readonly BG_CYAN="\[$(tput setab 6)\]"
         readonly BG_GREEN="\[$(tput setab 2)\]"
+        readonly BG_WHITE="\[$(tput setab 7)\]"
+        readonly BG_BLACK="\[$(tput setab 0)\]"
     fi
 
     readonly DIM="\[$(tput dim)\]"
     readonly REVERSE="\[$(tput rev)\]"
     readonly RESET="\[$(tput sgr0)\]"
     readonly BOLD="\[$(tput bold)\]"
+fi
 
-    if [[ -z "$PS_SYMBOL" ]]; then
-      case "$(uname)" in
-          Darwin)
-              PS_SYMBOL=$PS_SYMBOL_DARWIN
-              ;;
-          Linux)
-              PS_SYMBOL=$PS_SYMBOL_LINUX
-              ;;
-          *)
-              PS_SYMBOL=$PS_SYMBOL_OTHER
-      esac
-    fi
+    POWERLINE_SEP="\ue0b0"
 
-    __git_info() { 
-        [ -x "$(which git)" ] || return    # git not found
-
-        local git_eng="env LANG=C git"   # force git output in English to make our work easier
-        # get current branch name or short SHA1 hash for detached head
-        local branch="$($git_eng symbolic-ref --short HEAD 2>/dev/null || $git_eng describe --tags --always 2>/dev/null)"
-        [ -n "$branch" ] || return  # git branch not found
-
-        local marks
-
-        # branch is modified?
-        [ -n "$($git_eng status --porcelain)" ] && marks+=" $GIT_BRANCH_CHANGED_SYMBOL"
-
-        # how many commits local branch is ahead/behind of remote?
-        local stat="$($git_eng status --porcelain --branch | grep '^##' | grep -o '\[.\+\]$')"
-        local aheadN="$(echo $stat | grep -o 'ahead [[:digit:]]\+' | grep -o '[[:digit:]]\+')"
-        local behindN="$(echo $stat | grep -o 'behind [[:digit:]]\+' | grep -o '[[:digit:]]\+')"
-        [ -n "$aheadN" ] && marks+=" $GIT_NEED_PUSH_SYMBOL$aheadN"
-        [ -n "$behindN" ] && marks+=" $GIT_NEED_PULL_SYMBOL$behindN"
-
-        # print the git branch segment without a trailing newline
-        printf " $GIT_BRANCH_SYMBOL$branch$marks "
+    get_color() {
+      local temp="$1_$2"
+      echo "${!temp}"
     }
 
-    ps1() {
-        # Check the exit code of the previous command and display different
-        # colors in the prompt accordingly. 
-        if [ $? -eq 0 ]; then
-            local BG_EXIT="$BG_GREEN"
-        else
-            local BG_EXIT="$BG_RED"
-        fi
+    powerline_segment_sep() {
+      local PREV=$(get_color FG $1)
+      local NEXT=$(get_color BG $2)
 
-        PS1="$BG_BASE1$FG_BASE3 \w $RESET"
-        # Bash by default expands the content of PS1 unless promptvars is disabled.
-        # We must use another layer of reference to prevent expanding any user
-        # provided strings, which would cause security issues.
-        # POC: https://github.com/njhartwell/pw3nage
-        # Related fix in git-bash: https://github.com/git/git/blob/9d77b0405ce6b471cb5ce3a904368fc25e55643d/contrib/completion/git-prompt.sh#L324
-        if shopt -q promptvars; then
-            __powerline_git_info="$(__git_info)"
-            PS1+="$BG_BLUE$FG_BASE3\${__powerline_git_info}$RESET"
-        else
-            # promptvars is disabled. Avoid creating unnecessary env var.
-            PS1+="$BG_BLUE$FG_BASE3$(__git_info)$RESET"
-        fi
-        PS1+="$BG_EXIT$FG_BASE3 $PS_SYMBOL $RESET "
+      printf " $RESET$PREV$NEXT$POWERLINE_SEP "
     }
 
-    PROMPT_COMMAND=ps1
+    powerline_segment() {
+      local BG=$1
+      local FG=$2
+      local prefix=""
+
+      shift; shift
+
+      if [ -n "${__prev_segment_bg}" ]; then
+        powerline_segment_sep $__prev_segment_bg $BG
+      else
+        prefix=" "
+      fi
+
+      printf "$(get_color BG $BG)$(get_color FG $FG)$prefix$@"
+
+      __prev_segment_bg=$BG
+    }
+
+    __powerline_prompt() {
+      PS1="$(powerline_prompt)$RESET"
+      unset __prev_segment_bg
+    }
+
+    PROMPT_COMMAND=__powerline_prompt
 }
 
 __powerline
 unset __powerline
+
+powerline_prompt() {
+  local ret=$?
+  if [ $ret -ne 0 ]; then
+    powerline_segment BASE03 WHITE "$BOLD$ret"
+  fi
+  powerline_segment BLUE WHITE "$BOLD$USER"
+  powerline_segment BASE01 WHITE "$BOLD$(dirs +0)" # show $PWD relative to ~
+  powerline_segment BLACK NONE ""
+}
+
+
+
